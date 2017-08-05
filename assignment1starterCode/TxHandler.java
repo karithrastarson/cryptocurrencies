@@ -13,8 +13,6 @@ public class TxHandler {
 
     public TxHandler(UTXOPool utxoPool) {
         currentPool = new UTXOPool(utxoPool);
-currentPool.
-
     }
 
     /**
@@ -38,8 +36,8 @@ currentPool.
         int index = 0;
         for(Transaction.Output o : outputs) {
             UTXO utxo = new UTXO(tx.getHash(), index++);
-            //Add it to a list for later use
 
+            //Add it to a list for later use
             tx_UTXOs.add(utxo);
             if(!currentPool.contains(utxo)){
                 test_1 = false;
