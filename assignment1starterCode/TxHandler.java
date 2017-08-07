@@ -32,6 +32,10 @@ public class TxHandler {
 //        Pool will be used for rule 3
         UTXOPool tx_UTXOs = new UTXOPool();
 
+        //          Will be used for rule 5
+        double inputSum = 0.0;
+        double outputSum = 0.0;
+
 //        (1)
 
         int index = 0;
@@ -44,6 +48,7 @@ public class TxHandler {
 
 //        (2)
             Transaction.Output corr_output = currentPool.getTxOutput(utxo);
+            inputSum += corr_output.value;
             if (!Crypto.verifySignature(corr_output.address, tx.getRawDataToSign(index++), i.signature)) {
                 return false;
             }
@@ -55,20 +60,13 @@ public class TxHandler {
 
 
 //        (4)
-        boolean test_4 = true;
-
         for (Transaction.Output txO : outputs) {
             if (txO.value < 0) {
-                test_4 = false;
+                return false;
             }
         }
 
 //        (5)
-        double inputSum = 0.0;
-        double outputSum = 0.0;
-        for (Transaction.Input txI : inputs) {
-            inputSum += outputs.get(txI.outputIndex).value;
-        }
         for (Transaction.Output txO : outputs) {
             outputSum += txO.value;
         }
@@ -83,7 +81,7 @@ public class TxHandler {
      * updating the current UTXO pool as appropriate.
      */
     public Transaction[] handleTxs(Transaction[] possibleTxs) {
-        //Initialize an array, where the biggest possible size is the case when all transactions are valid
+        //Initialize an array with valid Transactions
         ArrayList<Transaction> validTransactions = new ArrayList<>();
 
 //          For every output of every TX do: Compare against every output of every TX and evaluate:
