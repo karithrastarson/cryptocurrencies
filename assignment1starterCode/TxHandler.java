@@ -84,25 +84,8 @@ public class TxHandler {
         //Initialize an array with valid Transactions
         ArrayList<Transaction> validTransactions = new ArrayList<>();
 
-//          For every output of every TX do: Compare against every output of every TX and evaluate:
-//          if output is the same, but the transaction is different, then double spend has been violated
-
         for(Transaction tx_i : possibleTxs) {
-            //Make sure that multiple TXs don't spend the same output
-            boolean doubleSpend = false;
-            for(Transaction.Output tx_io : tx_i.getOutputs()) {
-                for(Transaction tx_j : possibleTxs) {
-                    for(Transaction.Output tx_jo : tx_j.getOutputs()) {
-                        if(!tx_i.equals(tx_j) && tx_io.equals(tx_jo)) {
-                            doubleSpend = true;
-                        }
-                    }
-                }
-            }
-
-            if(!doubleSpend && isValidTx(tx_i)){
-//                  If the transaction does not violate double spend and is validated using the validation method,
-//                  then add it to the list of valid transactions
+            if(isValidTx(tx_i)){
                 validTransactions.add(tx_i);
 //              Update the current UTXO pool as appropriate.
                 for (Transaction.Input in : tx_i.getInputs()) {
@@ -114,11 +97,15 @@ public class TxHandler {
                     UTXO utxo = new UTXO(tx_i.getHash(), i);
                     currentPool.addUTXO(utxo, out);
                 }
-
             }
         }
 
         Transaction[] vTx = new Transaction[validTransactions.size()];
+        int counter = 0;
+        for(Transaction t : validTransactions) {
+            vTx[counter++] = t;
+        }
+
         return vTx;
     }
 
