@@ -17,85 +17,65 @@ public class TxHandler {
 
     /**
      * @return true if:
-     * (1) all outputs claimed by {@code tx} are in the current UTXO pool, 
-     * (2) the signatures on each input of {@code tx} are valid, 
+     * (1) all outputs claimed by {@code tx} are in the current UTXO pool,
+     * (2) the signatures on each input of {@code tx} are valid,
      * (3) no UTXO is claimed multiple times by {@code tx},
      * (4) all of {@code tx}s output values are non-negative, and
      * (5) the sum of {@code tx}s input values is greater than or equal to the sum of its output
-     *     values; and false otherwise.
+     * values; and false otherwise.
      */
     public boolean isValidTx(Transaction tx) {
         boolean Tx_validity = false;
         ArrayList<Transaction.Input> inputs = tx.getInputs();
         ArrayList<Transaction.Output> outputs = tx.getOutputs();
 
-//        List will be used for rule 3
-        ArrayList<UTXO> tx_UTXOs = new ArrayList<>();
-//        (1)
-        boolean test_1 = true;
-        int index = 0;
-        for(Transaction.Output o : outputs) {
-            UTXO utxo = new UTXO(tx.getHash(), index++);
+//        Pool will be used for rule 3
+        UTXOPool tx_UTXOs = new UTXOPool();
 
-            //Add it to a list for later use
-            tx_UTXOs.add(utxo);
-            if(!currentPool.contains(utxo)){
-                test_1 = false;
+//        (1)
+
+        int index = 0;
+        for (Transaction.Input i : inputs) {
+            UTXO utxo = new UTXO(i.prevTxHash, i.outputIndex);
+
+            if (!currentPool.contains(utxo)) {
+                return false;
             }
-        }
 
 //        (2)
-        boolean test_2 = true;
-        index = 0;
-        for(Transaction.Input txI : inputs) {
-            //get corresponding output for the public key
-            Transaction.Output corr_output = outputs.get(txI.outputIndex);
-
-            if(!Crypto.verifySignature(corr_output.address,tx.getRawDataToSign(index++), txI.signature)) {
-                test_2 = false;
+            Transaction.Output corr_output = currentPool.getTxOutput(utxo);
+            if (!Crypto.verifySignature(corr_output.address, tx.getRawDataToSign(index++), i.signature)) {
+                return false;
             }
+
+//          (3)
+            if (tx_UTXOs.contains(utxo)) return false;
+            tx_UTXOs.addUTXO(utxo, corr_output);
         }
 
-//        (3)
-        boolean test_3 = true;
-
-        for(UTXO i : tx_UTXOs) {
-            int counter = 0;
-            for(UTXO j : tx_UTXOs){
-                if(i.equals(j)) {
-                    counter++;
-                }
-            }
-            if (counter > 1) {
-                test_3 = false;
-            }
-        }
 
 //        (4)
         boolean test_4 = true;
 
-        for(Transaction.Output txO : outputs) {
-            if(txO.value < 0) {
+        for (Transaction.Output txO : outputs) {
+            if (txO.value < 0) {
                 test_4 = false;
             }
         }
 
 //        (5)
-        boolean test_5 = true;
         double inputSum = 0.0;
         double outputSum = 0.0;
-        for(Transaction.Input txI : inputs) {
+        for (Transaction.Input txI : inputs) {
             inputSum += outputs.get(txI.outputIndex).value;
         }
-        for(Transaction.Output txO : outputs) {
+        for (Transaction.Output txO : outputs) {
             outputSum += txO.value;
         }
-        if(inputSum < outputSum) {
-            test_5 = false;
-        }
 
-        return test_1 && test_2 && test_3 && test_4 && test_5;
+        return inputSum >= outputSum;
     }
+
 
     /**
      * Handles each epoch by receiving an unordered array of proposed transactions, checking each
@@ -104,12 +84,11 @@ public class TxHandler {
      */
     public Transaction[] handleTxs(Transaction[] possibleTxs) {
         //Initialize an array, where the biggest possible size is the case when all transactions are valid
-        Transaction[] validTransactions = new Transaction[possibleTxs.length];
+        ArrayList<Transaction> validTransactions = new ArrayList<>();
 
 //          For every output of every TX do: Compare against every output of every TX and evaluate:
 //          if output is the same, but the transaction is different, then double spend has been violated
 
-        int validIndex = 0;
         for(Transaction tx_i : possibleTxs) {
             //Make sure that multiple TXs don't spend the same output
             boolean doubleSpend = false;
@@ -122,23 +101,27 @@ public class TxHandler {
                     }
                 }
             }
+
             if(!doubleSpend && isValidTx(tx_i)){
 //                  If the transaction does not violate double spend and is validated using the validation method,
 //                  then add it to the list of valid transactions
-                validTransactions[validIndex++] = tx_i;
+                validTransactions.add(tx_i);
+//              Update the current UTXO pool as appropriate.
+                for (Transaction.Input in : tx_i.getInputs()) {
+                    UTXO utxo = new UTXO(in.prevTxHash, in.outputIndex);
+                    currentPool.removeUTXO(utxo);
+                }
+                for (int i = 0; i < tx_i.numOutputs(); i++) {
+                    Transaction.Output out = tx_i.getOutput(i);
+                    UTXO utxo = new UTXO(tx_i.getHash(), i);
+                    currentPool.addUTXO(utxo, out);
+                }
+
             }
         }
 
-//        Update the current UTXO pool as appropriate.
-//        Remove all the accepted transactions outputs from the current UTXO pool
-        for(int i = 0; i < validTransactions.length - 1; i++) {
-            int index = 0;
-            for(Transaction.Output txo: validTransactions[i].getOutputs()) {
-                UTXO utxo = new UTXO(validTransactions[i].getHash(), index++);
-                currentPool.removeUTXO(utxo);
-            }
-        }
-        return validTransactions;
+        Transaction[] vTx = new Transaction[validTransactions.size()];
+        return vTx;
     }
 
 }
