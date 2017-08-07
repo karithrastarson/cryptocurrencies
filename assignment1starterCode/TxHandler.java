@@ -46,10 +46,12 @@ public class TxHandler {
 
 //        (2)
         boolean test_2 = true;
+        index = 0;
         for(Transaction.Input txI : inputs) {
             //get corresponding output for the public key
             Transaction.Output corr_output = outputs.get(txI.outputIndex);
-            if(!Crypto.verifySignature(corr_output.address,tx.getHash(), txI.signature)) {
+
+            if(!Crypto.verifySignature(corr_output.address,tx.getRawDataToSign(index++), txI.signature)) {
                 test_2 = false;
             }
         }
@@ -124,7 +126,16 @@ public class TxHandler {
 //                  If the transaction does not violate double spend and is validated using the validation method,
 //                  then add it to the list of valid transactions
                 validTransactions[validIndex++] = tx_i;
+            }
+        }
 
+//        Update the current UTXO pool as appropriate.
+//        Remove all the accepted transactions outputs from the current UTXO pool
+        for(int i = 0; i < validTransactions.length - 1; i++) {
+            int index = 0;
+            for(Transaction.Output txo: validTransactions[i].getOutputs()) {
+                UTXO utxo = new UTXO(validTransactions[i].getHash(), index++);
+                currentPool.removeUTXO(utxo);
             }
         }
         return validTransactions;
